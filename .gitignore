@@ -1,0 +1,23 @@
+# Ignore Python virtual environment
+venv/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
+
+# Flask instance folder
+instance/
+
+# Log files
+*.log
