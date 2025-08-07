@@ -14,10 +14,10 @@ import mysql.connector
 # ========== MYSQL CONNECTION ==========
 def get_connection():
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME")
+        host="localhost",
+        user="root",
+        password="",
+        database="vidyamnine"
     )
 
 # Load environment variables
@@ -27,11 +27,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 app = Flask(__name__)
 CORS(app)
 
-# Tesseract path
+# Tesseract path (Windows)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Gemini API
-
+# Gemini API config
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 HEADERS = {
     "Content-Type": "application/json",
@@ -72,7 +71,6 @@ def generate_solution():
     if not raw_text.strip():
         return jsonify({'error': 'Empty question text'}), 400
 
-    # Split by newline, skip empty lines
     questions = [q.strip() for q in raw_text.strip().split('\n') if q.strip()]
     results = []
 
@@ -81,7 +79,6 @@ def generate_solution():
         cursor = conn.cursor()
 
         for q in questions:
-            # Gemini payloads
             payload_solution = {
                 "contents": [{
                     "parts": [{"text": f"Answer this educational question:\n\n{q}"}]
@@ -94,7 +91,6 @@ def generate_solution():
                 }]
             }
 
-            # Gemini API calls
             res_solution = requests.post(GEMINI_API_URL, headers=HEADERS, json=payload_solution)
             res_solution.raise_for_status()
             sol_text = res_solution.json()['candidates'][0]['content']['parts'][0]['text'].strip()
@@ -103,7 +99,6 @@ def generate_solution():
             res_hint.raise_for_status()
             hint_text = res_hint.json()['candidates'][0]['content']['parts'][0]['text'].strip()
 
-            # Save to MySQL
             cursor.execute('''
                 INSERT INTO extracted_data (question, solution, hint)
                 VALUES (%s, %s, %s)
@@ -144,6 +139,33 @@ def save_data():
     except Exception as e:
         print("MySQL Error:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# ========== GET ALL SAVED SOLUTIONS ==========
+@app.route('/get-solutions', methods=['GET'])
+def get_solutions():
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, question, solution, hint FROM extracted_data ORDER BY id ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return jsonify({'status': 'success', 'data': rows})
+    except Exception as e:
+        print("Fetch Error:", e)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ========== NEW: FETCH DATA FOR FLUTTER ==========
+@app.route('/fetch-data', methods=['GET'])
+def fetch_data():
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM extracted_data ORDER BY id ASC")
+        data = cursor.fetchall()
+        conn.close()
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ========== MAIN ==========
 if __name__ == '__main__':
